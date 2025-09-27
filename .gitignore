@@ -1,0 +1,43 @@
+```
+# Build artifacts
+/build/
+/out/
+/bin/
+/lib/
+/CMakeFiles/
+/CMakeCache.txt
+cmake_install.cmake
+Makefile
+
+# Compiled object files
+*.o
+*.obj
+*.lo
+*.la
+*.a
+*.lib
+*.so
+*.dylib
+*.dll
+*.exe
+*.out
+*.app
+
+# IDE/Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Visual Studio
+.vs/
+*.sln
+*.vcxproj*
+*.vcproj*
+*.user
+*.db
+*.opendb
+
+# Logs
+*.log
