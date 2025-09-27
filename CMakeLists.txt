@@ -10,6 +10,15 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 # Output directories
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+option(RESULTS_IN_SOURCE "Write results to the project root instead of build dir" ON)
+
+if (RESULTS_IN_SOURCE)
+    set(RESULTS_DIR "${CMAKE_SOURCE_DIR}/results")
+else()
+    set(RESULTS_DIR "${CMAKE_BINARY_DIR}/results")
+endif()
+
+message(STATUS "Results will be written to: ${RESULTS_DIR}")
 
 add_executable(Project
     src/main.cpp
@@ -17,3 +26,9 @@ add_executable(Project
 
 # Force C++23 test build
 target_compile_features(Project PRIVATE cxx_std_23)
+
+# Define macros
+target_compile_definitions(Project
+    PRIVATE PROJECT_ROOT_DIR="${CMAKE_SOURCE_DIR}"
+            PROJECT_RESULTS_DIR="${RESULTS_DIR}"
+)
