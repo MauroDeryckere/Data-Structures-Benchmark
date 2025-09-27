@@ -91,10 +91,11 @@ foreach ($gcc in $gccVersions) {
     }
 }
 
-# --- Clang / LLVM versions ---
+
+
 Write-Host "`n[3/3] Installing Clang / LLVM builds..."
 $clangVersions = @(
-   @{ Ver = "21.1.2"; Url = "https://github.com/llvm/llvm-project/releases/download/llvmorg-21.1.2/clang+llvm-21.1.2-x86_64-pc-windows-msvc.tar.xz" }
+    @{ Ver = "21.1.2"; BaseUrl = "https://github.com/llvm/llvm-project/releases/download/llvmorg-21.1.2" }
 )
 
 foreach ($clang in $clangVersions) {
@@ -105,52 +106,46 @@ foreach ($clang in $clangVersions) {
     }
 
     New-Item -ItemType Directory -Path $outDir | Out-Null
-    $fileName = Split-Path $clang.Url -Leaf
-    $archiveFile = Join-Path $outDir $fileName
 
-    Write-Host "Downloading Clang $($clang.Ver) from $($clang.Url)..."
+    # Use tarball for portable install
+    $tarUrl = "$($clang.BaseUrl)/clang+llvm-$($clang.Ver)-x86_64-pc-windows-msvc.tar.xz"
+    $downloadFile = Join-Path $outDir "clang.tar.xz"
+
     try {
-        [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-        Invoke-WebRequest -Uri $clang.Url -OutFile $archiveFile -UseBasicParsing -MaximumRedirection 5 -ErrorAction Stop
-        Write-Host "Downloaded to $archiveFile"
-    }
-    catch {
-        Write-Warning "Could not download Clang $($clang.Ver). Skipping. URL: $($clang.Url)"        continue
-    }
+        Write-Host "Downloading Clang $($clang.Ver) from $tarUrl..."
+        & curl.exe -L --ssl-no-revoke $tarUrl -o $downloadFile
 
-    if (Test-Path archiveFile) {
-        $size = (Get-Item archiveFile).Length
-        Write-Host "Downloaded size: $size bytes"
-        if ($size -lt 20MB) {
-            Write-Warning "Download too small—likely not full archive. Skipping."
-            continue
+        if (!(Test-Path $downloadFile)) {
+            throw "Download failed."
         }
 
-        Write-Host "Extracting Clang $($clang.Ver)..."
-    try{
-        if ($archiveFile -like "*.zip") {
-            Expand-Archive -Path $archiveFile -DestinationPath $outDir -Force
+        Write-Host "Extracting tarball with 7-Zip..."
+        # Path to 7-Zip
+        $sevenZip = "C:\Program Files\7-Zip\7z.exe"
+        if (!(Test-Path $sevenZip)) {
+            $sevenZip = "C:\Program Files (x86)\7-Zip\7z.exe"
         }
-        elseif ($archiveFile -like "*.tar.xz") {
-            # First unpack the .xz into .tar
-            & 7z x $archiveFile -o"$outDir" | Out-Null
-            $tarFile = Get-ChildItem $outDir -Filter "*.tar" | Select-Object -First 1
-            if ($tarFile) {
-                & 7z x $tarFile.FullName -o"$outDir" | Out-Null
-                Remove-Item $tarFile.FullName -ErrorAction SilentlyContinue
-            }
+
+        if (!(Test-Path $sevenZip)) {
+            throw "7-Zip not found. Please install 7-Zip and update the path."
         }
-        else {
-            Write-Warning "Unknown archive format: $archiveFile"
-        }
+
+        # Step 1: extract .xz -> .tar
+        & $sevenZip x $downloadFile "-o$outDir" -y | Out-Null
+        $tarFile = Get-ChildItem $outDir -Filter *.tar | Select-Object -First 1
+
+        if ($tarFile) {
+            # Step 2: extract .tar -> actual files
+            & $sevenZip x $tarFile.FullName "-o$outDir" -y | Out-Null
+            Remove-Item $tarFile.FullName -Force
+        }           
+
+        Remove-Item $downloadFile -Force
+        Write-Host "Extracted Clang $($clang.Ver) to $outDir"
     }
     catch {
-        Write-Warning "Failed to extract $zipFile"
+        Write-Warning "Failed to install Clang $($clang.Ver): $_"
     }
-        Remove-Item archiveFile -ErrorAction SilentlyContinue
-    }
-    else {
-Write-Warning "Archive file $archiveFile not found after download"    }
 }
 
 # --- Summary ---
