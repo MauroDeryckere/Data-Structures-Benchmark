@@ -10,14 +10,18 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 # Output directories
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
-option(RESULTS_IN_SOURCE "Write results to the project root instead of build dir" ON)
+option(RESULTS_IN_SOURCE "Write results to the project root instead of build dir" OFF)
 
 if (RESULTS_IN_SOURCE)
     set(RESULTS_DIR "${CMAKE_SOURCE_DIR}/results")
 else()
-    set(RESULTS_DIR "${CMAKE_BINARY_DIR}/results")
+    if(WIN32)
+        set(RESULTS_DIR "C:/BENCHMARK_RESULTS")
+    else()
+        set(RESULTS_DIR "/tmp/benchmark_results")
+    endif()
 endif()
-
+file(MAKE_DIRECTORY ${RESULTS_DIR})
 message(STATUS "Results will be written to: ${RESULTS_DIR}")
 
 add_executable(Project
