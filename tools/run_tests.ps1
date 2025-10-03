@@ -10,6 +10,8 @@ if (-not (Test-Path $vswhere))
 # Setup paths
 $src       = (Resolve-Path "$PSScriptRoot/..").ToString()
 $buildRoot = (Join-Path $PSScriptRoot "build").ToString()
+$compRoot  = (Join-Path $PSScriptRoot "compilers").ToString()
+
 New-Item -ItemType Directory -Force -Path "$src/results" | Out-Null
 
 # ------------------------------
@@ -153,6 +155,43 @@ if (Test-Path $msysPath)
         cmake --build $msysBuild --config Release"
     
     Run-Exe $gccExe
+
+    $gccVersions = @(
+        @{ Ver = "13.2.0" },
+        @{ Ver = "14.2.0" }
+    )
+
+    foreach ($gcc in $gccVersions) 
+    {
+        $outDir   = Join-Path $compRoot "gcc-$($gcc.Ver)"
+        $gccBin   = Join-Path $outDir "mingw64\bin"
+        $gccBuild = Join-Path $buildRoot "gcc-$($gcc.Ver)"
+        $gccExe   = Join-Path $gccBuild "bin\Project.exe"
+
+        if (!(Test-Path $gccBin)) 
+        {
+            Write-Warning "GCC $($gcc.Ver) not found at $gccBin. Skipping..."
+            continue
+        }
+
+        Write-Host "=== Building with GCC $($gcc.Ver) ==="
+
+        cmake -G "Ninja" -B $gccBuild -S $src `
+            -DCMAKE_BUILD_TYPE=Release `
+            -DCMAKE_C_COMPILER="$gccBin\gcc.exe" `
+            -DCMAKE_CXX_COMPILER="$gccBin\g++.exe"
+
+        cmake --build $gccBuild --config Release
+
+        if (Test-Path $gccExe) 
+        {
+            Run-Exe $gccExe
+        } 
+        else 
+        {
+            Write-Warning "Build for GCC $($gcc.Ver) failed (no exe)."
+        }
+    }
 } 
 else
 {
