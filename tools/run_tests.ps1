@@ -29,13 +29,11 @@ Write-Host "Using vcvarsall.bat at $vcvars"
 
 # Run vcvarsall.bat for 64-bit builds and capture the environment
 $arch = "x64"
-# Run vcvarsall.bat to set env, then persist those env vars into PowerShell
-cmd /c "`"$vcvars`" x64 && set" 2>$null | ForEach-Object {
+cmd /c "`"$vcvars`" $arch && set" 2>$null | ForEach-Object {
     if ($_ -match "^(.*?)=(.*)$") {
         Set-Item -Force -Path "Env:$($matches[1])" -Value $matches[2]
     }
 }
-
 Write-Host "MSVC environment set up for $arch"
 
 
@@ -70,20 +68,10 @@ $msvcExe   = Join-Path $msvcBuild "bin/Release/Project.exe"
 if (Test-Path $vcvars) {
     Clean-Dir $msvcBuild
 
-    # Import MSVC env
-    cmd /c "`"$vcvars`" x64 && set" | ForEach-Object {
-        if ($_ -match "^(.*?)=(.*)$") {
-            Set-Item -Force -Path "Env:$($matches[1])" -Value $matches[2]
-        }
-    }
-
-    # Run cmake directly
     cmake -G "Visual Studio 17 2022" -A x64 -B "$msvcBuild" -S "$src"
     cmake --build "$msvcBuild" --config Release
 
     Run-Exe $msvcExe
-} else {
-    Write-Warning "MSVC vcvarsall.bat not found."
 }
 
 # --- Clang ---
