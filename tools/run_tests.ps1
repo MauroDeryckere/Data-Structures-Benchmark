@@ -12,6 +12,8 @@ $src       = (Resolve-Path "$PSScriptRoot/..").ToString()
 $buildRoot = (Join-Path $PSScriptRoot "build").ToString()
 $compRoot  = (Join-Path $PSScriptRoot "compilers").ToString()
 
+$gccListFile = Join-Path $PSScriptRoot "gcc_versions.txt"
+
 New-Item -ItemType Directory -Force -Path "$src/results" | Out-Null
 
 # ------------------------------
@@ -156,10 +158,13 @@ if (Test-Path $msysPath)
     
     Run-Exe $gccExe
 
-    $gccVersions = @(
-        @{ Ver = "13.2.0" },
-        @{ Ver = "14.2.0" }
-    )
+    $gccVersions = Get-Content $gccListFile | Where-Object { $_.Trim() -ne "" } | ForEach-Object {
+        $parts = $_ -split "\|"
+        @{
+            Ver = $parts[0].Trim()
+            Url = $parts[1].Trim()
+        }
+    }
 
     foreach ($gcc in $gccVersions) 
     {

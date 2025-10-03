@@ -1,6 +1,9 @@
 Write-Host "=== Installing compilers and build tools ==="
 
 $root = "$PSScriptRoot/compilers" 
+
+$gccListFile = Join-Path $PSScriptRoot "gcc_versions.txt"
+
 New-Item -ItemType Directory -Force -Path $root | Out-Null
 
 # ------------------------------
@@ -66,10 +69,13 @@ if (Test-Path $msysPath)
 }
 
 # WinLibs GCC (portable zip)
-$gccVersions = @(
-    @{ Ver = "13.2.0"; Url = "https://sourceforge.net/projects/winlibs-mingw/files/13.2.0posix-18.1.1-11.0.1-msvcrt-r6/winlibs-x86_64-posix-seh-gcc-13.2.0-mingw-w64msvcrt-11.0.1-r6.zip/download" },
-    @{ Ver = "14.2.0"; Url = "https://sourceforge.net/projects/winlibs-mingw/files/14.2.0mcf-12.0.0-ucrt-r1/winlibs-x86_64-mcf-seh-gcc-14.2.0-mingw-w64ucrt-12.0.0-r1.zip/download" }
-)
+$gccVersions = Get-Content $gccListFile | Where-Object { $_.Trim() -ne "" } | ForEach-Object {
+    $parts = $_ -split "\|"
+    @{
+        Ver = $parts[0].Trim()
+        Url = $parts[1].Trim()
+    }
+}
 
 foreach ($gcc in $gccVersions)
 {
