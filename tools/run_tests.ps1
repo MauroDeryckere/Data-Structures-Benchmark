@@ -13,6 +13,7 @@ $buildRoot = (Join-Path $PSScriptRoot "build").ToString()
 $compRoot  = (Join-Path $PSScriptRoot "compilers").ToString()
 
 $gccListFile = Join-Path $PSScriptRoot "gcc_versions.txt"
+$clangListFile = Join-Path $PSScriptRoot "clang_versions.txt"
 
 New-Item -ItemType Directory -Force -Path "$src/results" | Out-Null
 
@@ -118,24 +119,37 @@ else
 # CLang
 # ------------------------------
 Write-Host "`n[2/3] Clang..."
-$clangBuild = Join-Path $buildRoot "clang"
-$clangExe   = Join-Path $clangBuild "bin/Project.exe"
-$clangBin   = Get-ChildItem -Path (Join-Path $PSScriptRoot "compilers/clang-21.1.2") -Recurse -Directory -Filter "bin" | Select-Object -First 1
-if ($clangBin) 
-{
-    $env:CC  = Join-Path $clangBin.FullName "clang.exe"
-    $env:CXX = Join-Path $clangBin.FullName "clang++.exe"
 
-    Clean-Dir $clangBuild
-    cmake -G "Ninja" -B "$clangBuild" -S "$src"
-    cmake --build "$clangBuild" --config Release
-
-    Run-Exe $clangExe
-} 
-else 
-{
-    Write-Warning "Clang not found."
+$clangVersions = Get-Content $clangListFile | Where-Object { $_.Trim() -ne "" } | ForEach-Object {
+    $parts = $_ -split "\|"
+    @{
+        Ver = $parts[0].Trim()
+        Url = $parts[1].Trim()
+    }
 }
+
+foreach ($clang in $clangVersions) 
+{
+    $clangBuild = Join-Path $buildRoot "clang"
+    $clangExe   = Join-Path $clangBuild "bin/Project.exe"
+    $clangBin   = Get-ChildItem -Path (Join-Path $PSScriptRoot "compilers/clang-21.1.2") -Recurse -Directory -Filter "bin" | Select-Object -First 1
+    if ($clangBin) 
+    {
+        $env:CC  = Join-Path $clangBin.FullName "clang.exe"
+        $env:CXX = Join-Path $clangBin.FullName "clang++.exe"
+
+        Clean-Dir $clangBuild
+        cmake -G "Ninja" -B "$clangBuild" -S "$src"
+        cmake --build "$clangBuild" --config Release
+
+        Run-Exe $clangExe
+    } 
+    else 
+    {
+        Write-Warning "Clang not found."
+    }
+}
+
 # ------------------------------
 
 

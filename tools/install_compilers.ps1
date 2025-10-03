@@ -3,6 +3,7 @@ Write-Host "=== Installing compilers and build tools ==="
 $root = "$PSScriptRoot/compilers" 
 
 $gccListFile = Join-Path $PSScriptRoot "gcc_versions.txt"
+$clangListFile = Join-Path $PSScriptRoot "clang_versions.txt"
 
 New-Item -ItemType Directory -Force -Path $root | Out-Null
 
@@ -98,10 +99,13 @@ foreach ($gcc in $gccVersions)
 # ------------------------------
 Write-Host "`n[3/3] Installing Clang/LLVM..."
 
-$clangVersions = @(
-    @{ Ver = "21.1.2"; BaseUrl = "https://github.com/llvm/llvm-project/releases/download/llvmorg-21.1.2" }
-    # @{ Ver = "20.1.0"; BaseUrl = "https://github.com/llvm/llvm-project/releases/download/llvmorg-20.1.0" }
-)
+$clangVersions = Get-Content $clangListFile | Where-Object { $_.Trim() -ne "" } | ForEach-Object {
+    $parts = $_ -split "\|"
+    @{
+        Ver = $parts[0].Trim()
+        Url = $parts[1].Trim()
+    }
+}
 
 foreach ($clang in $clangVersions) 
 {
