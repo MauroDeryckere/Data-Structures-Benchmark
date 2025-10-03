@@ -29,7 +29,8 @@ Write-Host "Using vcvarsall.bat at $vcvars"
 
 # Run vcvarsall.bat for 64-bit builds and capture the environment
 $arch = "x64"
-cmd /c "`"$vcvars`" $arch && set" | ForEach-Object {
+# Run vcvarsall.bat to set env, then persist those env vars into PowerShell
+cmd /c "`"$vcvars`" x64 && set" 2>$null | ForEach-Object {
     if ($_ -match "^(.*?)=(.*)$") {
         Set-Item -Force -Path "Env:$($matches[1])" -Value $matches[2]
     }
@@ -68,14 +69,43 @@ $msvcBuild = Join-Path $buildRoot "msvc"
 $msvcExe   = Join-Path $msvcBuild "bin/Release/Project.exe"
 if (Test-Path $vcvars) {
     Clean-Dir $msvcBuild
-    cmd /c "`"$vcvars`" x64 && cmake -G `"Visual Studio 17 2022`" -A x64 -B `"$msvcBuild`" -S `"$src`" && cmake --build `"$msvcBuild`" --config Release"
+
+    # Import MSVC env
+    cmd /c "`"$vcvars`" x64 && set" | ForEach-Object {
+        if ($_ -match "^(.*?)=(.*)$") {
+            Set-Item -Force -Path "Env:$($matches[1])" -Value $matches[2]
+        }
+    }
+
+    # Run cmake directly
+    cmake -G "Visual Studio 17 2022" -A x64 -B "$msvcBuild" -S "$src"
+    cmake --build "$msvcBuild" --config Release
+
     Run-Exe $msvcExe
 } else {
     Write-Warning "MSVC vcvarsall.bat not found."
 }
 
+# --- Clang ---
+Write-Host "`n[2/3] Clang..."
+$clangBuild = Join-Path $buildRoot "clang"
+$clangExe   = Join-Path $clangBuild "bin/Project.exe"
+$clangBin   = Get-ChildItem -Path (Join-Path $PSScriptRoot "compilers/clang-21.1.2") -Recurse -Directory -Filter "bin" | Select-Object -First 1
+if ($clangBin) {
+    $env:CC  = Join-Path $clangBin.FullName "clang.exe"
+    $env:CXX = Join-Path $clangBin.FullName "clang++.exe"
+
+    Clean-Dir $clangBuild
+   $clangCmd = "cmake -G `"Ninja`" -B `"$clangBuild`" -S `"$src`" ; cmake --build `"$clangBuild`" --config Release"
+    Invoke-Expression $clangCmd
+
+    Run-Exe $clangExe
+} else {
+    Write-Warning "Clang not found."
+}
+
 # --- GCC (MSYS2) ---
-Write-Host "`n[2/3] GCC (MSYS2)..."
+Write-Host "`n[3/3] GCC (MSYS2)..."
 $msysPath = "C:\msys64\usr\bin\bash.exe"
 if (Test-Path $msysPath) {
     function To-MsysPath($path) {
@@ -92,27 +122,11 @@ if (Test-Path $msysPath) {
         export CC=/mingw64/bin/gcc && export CXX=/mingw64/bin/g++ && \
         cmake -G 'Ninja' -B $msysBuild -S $msysSrc && \
         cmake --build $msysBuild --config Release"
+    
+    $clangExe   = Join-Path $clangBuild "bin/Project.exe"
     Run-Exe $gccExe
 } else {
     Write-Warning "MSYS2 bash not found. GCC skipped."
-}
-
-# --- Clang ---
-Write-Host "`n[3/3] Clang..."
-$clangBuild = Join-Path $buildRoot "clang"
-$clangExe   = Join-Path $clangBuild "bin/Project.exe"
-$clangBin   = Get-ChildItem -Path (Join-Path $PSScriptRoot "compilers/clang-21.1.2") -Recurse -Directory -Filter "bin" | Select-Object -First 1
-if ($clangBin) {
-    $env:CC  = Join-Path $clangBin.FullName "clang.exe"
-    $env:CXX = Join-Path $clangBin.FullName "clang++.exe"
-
-    Clean-Dir $clangBuild
-   $clangCmd = "cmake -G `"Ninja`" -B `"$clangBuild`" -S `"$src`" ; cmake --build `"$clangBuild`" --config Release"
-    Invoke-Expression $clangCmd
-
-    Run-Exe $clangExe
-} else {
-    Write-Warning "Clang not found."
 }
 
 Write-Host "`n=== All builds complete ==="

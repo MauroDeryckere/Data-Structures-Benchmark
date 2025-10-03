@@ -37,7 +37,7 @@ int main()
 	std::filesystem::create_directories(resultsDir);
 	std::filesystem::path const filePath{ resultsDir / ("compiler_info_" + safeName + ".txt") };
 
-	std::cout << "Writing results to: " << filePath << "\n";
+	std::cout << "Writing results to: " << filePath << std::endl;
 
 	std::ofstream out(filePath);
 	if (out.is_open())

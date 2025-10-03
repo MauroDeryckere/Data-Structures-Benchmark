@@ -36,3 +36,13 @@ target_compile_definitions(Project
     PRIVATE PROJECT_ROOT_DIR="${CMAKE_SOURCE_DIR}"
             PROJECT_RESULTS_DIR="${RESULTS_DIR}"
 )
+
+if (MSVC)
+    add_compile_options(@CMAKE_CXX_FLAGS@)
+    set(CMAKE_NINJA_FORCE_RESPONSE_FILE ON CACHE INTERNAL "")
+endif()
+
+if (MINGW)
+    message(STATUS "Building with fully static linking for MinGW")
+    target_link_options(Project PRIVATE -static -static-libgcc -static-libstdc++)
+endif()
