@@ -27,8 +27,18 @@ Write-Host "Installing MinGW-w64 GCC inside MSYS2..."
 if (Test-Path $msysPath) { 
     & $msysPath -lc "pacman -S --noconfirm --needed mingw-w64-x86_64-gcc" 
     Write-Host "GCC installed in MSYS2." 
+
+    Write-Host "Installing MinGW-w64 binutils (for windres.exe) inside MSYS2..."
+    & $msysPath -lc "pacman -S --noconfirm --needed mingw-w64-x86_64-binutils"
+    Write-Host "Binutils installed (includes windres.exe)."
 } else { 
     Write-Warning "MSYS2 not found at $msysPath. You may need to restart and rerun GCC setup." 
+}
+
+if (Test-Path $msysPath) {
+    Write-Host "Updating MSYS2 core packages..."
+    & $msysPath -lc "pacman -Syu --noconfirm"
+    & $msysPath -lc "pacman -Syu --noconfirm"
 }
 
 # --- GCC (WinLibs builds) ---
@@ -67,8 +77,8 @@ foreach ($gcc in $gccVersions) {
             Write-Warning "Download seems too small — likely not a valid archive. Skipping."
             continue
         }
-        # Detect archive type
 
+        # Detect archive type
         Write-Host "Extracting GCC $($gcc.Ver)..."
         try {
             if ($zipFile -match "\.7z$") {
@@ -148,6 +158,20 @@ foreach ($clang in $clangVersions) {
     }
 }
 
+Write-Host "`n[Extra] Installing CMake..."
+winget install Kitware.CMake --silent --accept-package-agreements --accept-source-agreements
+if (Test-Path $msysPath) { 
+    Write-Host "Installing CMake inside MSYS2..."
+    & $msysPath -lc "pacman -S --noconfirm --needed mingw-w64-x86_64-cmake"
+}
+
+Write-Host "`n[Extra] Installing Ninja build system..."
+winget install Ninja-build.Ninja --silent --accept-package-agreements --accept-source-agreements
+
+if (Test-Path $msysPath) { 
+    Write-Host "Installing Ninja inside MSYS2..."
+    & $msysPath -lc "pacman -S --noconfirm --needed mingw-w64-x86_64-ninja"
+}
 # --- Summary ---
 Write-Host "`n=== Compiler setup complete ==="
 Write-Host "MSVC: available via vcvarsall.bat or Developer Command Prompt"

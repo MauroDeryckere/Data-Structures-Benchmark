@@ -6,19 +6,20 @@
 
 [[nodiscard]] static std::string GetCompilerInfo() noexcept
 {
-	#if defined(_MSC_VER)
-		return "MSVC " + std::to_string(_MSC_VER) + " (full: " + std::to_string(_MSC_FULL_VER) + ")";
-	#elif defined(__clang__)
-		return "Clang " + std::to_string(__clang_major__) + "." +
-			std::to_string(__clang_minor__) + "." +
-			std::to_string(__clang_patchlevel__);
-	#elif defined(__GNUC__)
-		return "GCC " + std::to_string(__GNUC__) + "." +
-			std::to_string(__GNUC_MINOR__) + "." +
-			std::to_string(__GNUC_PATCHLEVEL__);
-	#else
-		return "Unknown compiler";
-	#endif
+#if defined(__clang__)
+	return "Clang " + std::to_string(__clang_major__) + "." +
+		std::to_string(__clang_minor__) + "." +
+		std::to_string(__clang_patchlevel__);
+#elif defined(_MSC_VER)
+	return "MSVC " + std::to_string(_MSC_VER) +
+		" (full: " + std::to_string(_MSC_FULL_VER) + ")";
+#elif defined(__GNUC__) && !defined(__clang__)
+	return "GCC " + std::to_string(__GNUC__) + "." +
+		std::to_string(__GNUC_MINOR__) + "." +
+		std::to_string(__GNUC_PATCHLEVEL__);
+#else
+	return "Unknown compiler";
+#endif
 }
 
 int main()
@@ -47,6 +48,7 @@ int main()
 		std::cerr << "Error: could not write to " << filePath << "\n";
 		return 1;
 	}
-
+	//std::string test;
+	//std::cin >> test;
 	return 0;
 }
