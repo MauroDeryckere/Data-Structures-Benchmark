@@ -88,8 +88,10 @@ if (Test-Path $msysPath) {
     $gccExe = Join-Path $buildRoot "gcc/bin/Project.exe"
 
     & $msysPath -lc "rm -rf $msysBuild && mkdir -p $msysBuild"
-    & $msysPath -lc "export PATH=/mingw64/bin:\$PATH && cmake -G 'Ninja' -DCMAKE_C_COMPILER=gcc -DCMAKE_CXX_COMPILER=g++ -DCMAKE_RC_COMPILER=windres -B $msysBuild -S $msysSrc && cmake --build $msysBuild --config Release"
-
+    & $msysPath -lc "export PATH=/mingw64/bin:\$PATH && \
+        export CC=/mingw64/bin/gcc && export CXX=/mingw64/bin/g++ && \
+        cmake -G 'Ninja' -B $msysBuild -S $msysSrc && \
+        cmake --build $msysBuild --config Release"
     Run-Exe $gccExe
 } else {
     Write-Warning "MSYS2 bash not found. GCC skipped."
