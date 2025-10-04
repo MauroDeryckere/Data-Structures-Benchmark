@@ -40,13 +40,40 @@ function Extract-ArchiveSafe($file, $dest)
 
 # ------------------------------
 
-
 # ------------------------------
 # MSVC
 # ------------------------------
+Write-Host "`n[1/3] Checking for Visual Studio 2022 (MSVC)..."
 
-# Assume user has MSVC / visual studio installed for now
+$vswhere = "C:\Program Files (x86)\Microsoft Visual Studio\Installer\vswhere.exe"
 
+if (Test-Path $vswhere) 
+{
+    $vsInfo = & $vswhere -latest -products * -requires Microsoft.Component.MSBuild -property installationPath -version "[17.0,18.0)" 2>$null
+
+    if ($vsInfo) 
+    {
+        $vcvarsPath = Join-Path $vsInfo "VC\Auxiliary\Build\vcvarsall.bat"
+        if (Test-Path $vcvarsPath) 
+        {
+            Write-Host "Visual Studio 2022 detected at: $vsInfo"
+            Write-Host "VCVars path: $vcvarsPath"
+        }
+        else
+        {
+            Write-Warning "Visual Studio 2022 found, but vcvarsall.bat missing."
+        }
+    }
+    else 
+    {
+        Write-Warning "Visual Studio 2022 not found. You can install it via:"
+        Write-Host " winget install Microsoft.VisualStudio.2022.Community --silent --accept-package-agreements --accept-source-agreements"
+    }
+}
+else 
+{
+    Write-Warning "vswhere.exe not found! Visual Studio Installer may not be installed."
+}
 # ------------------------------
 
 
