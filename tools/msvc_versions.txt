@@ -1,3 +1,0 @@
-2022|Microsoft.VisualStudio.2022.BuildTools|Microsoft.VisualStudio.Component.VC.Tools.x86.x64|latest
-2022|Microsoft.VisualStudio.2022.BuildTools|Microsoft.VisualStudio.Component.VC.Tools.x86.x64|14.38.33135
-2019|Microsoft.VisualStudio.2019.BuildTools|Microsoft.VisualStudio.Component.VC.Tools.x86.x64|latest
