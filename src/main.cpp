@@ -29,8 +29,8 @@ struct BenchmarkResult final
 {
 	std::string name;
 	size_t iterations;
-	double avgMs;
-	double totalMs;
+	double avgUs;
+	double totalUs;
 };
 
 using BenchmarkFunc = void(*)();
@@ -46,10 +46,10 @@ using BenchmarkFunc = void(*)();
 	}
 
 	auto const end{ high_resolution_clock::now() };
-	auto const totalMs{ duration<double, std::milli>(end - start).count() };
-	auto const avgMs{ totalMs / iterations };
+	auto const totalUs{ duration<double, std::micro>(end - start).count() };
+	auto const avgUs{ totalUs / iterations };
 
-	return { name, iterations, avgMs, totalMs };
+	return { name, iterations, avgUs, totalUs };
 }
 
 void BenchmarkLoop()
@@ -57,12 +57,12 @@ void BenchmarkLoop()
 	int x{ 0 };
 	std::vector<int> vec;
 
-	//for (int i{ 0 }; i < 100'000; ++i)
-	for (int i{ 0 }; i < 100; ++i)
+	for (int i{ 0 }; i < 100'000; ++i)
 	{
 		x += i;
 		x *= 2;
 		vec.emplace_back(x);
+		vec.back() %= 1000;
 	}
 }
 
@@ -82,7 +82,9 @@ int main()
 	std::filesystem::path const filePath{ resultsDir / ("bench_results_" + safeName + ".csv") };
 
 	std::vector<BenchmarkResult> results;
-	results.emplace_back(RunBenchmark("Loop", BenchmarkLoop, 10'000));
+	results.emplace_back(RunBenchmark("Loop", BenchmarkLoop, 10));
+	results.emplace_back(RunBenchmark("Loop2", BenchmarkLoop, 10));
+	results.emplace_back(RunBenchmark("Loop3", BenchmarkLoop, 10));
 
 	std::ofstream out(filePath);
 	if (!out.is_open())
@@ -92,17 +94,18 @@ int main()
 	}
 
 	// Write CSV header
-	out << "Compiler,Benchmark,Iterations,Average(ms),Total(ms)\n";
+	out << "Compiler,Benchmark,Iterations,Average(us),Total(us)\n";
+
 
 	for (auto const& r : results)
 	{
 		out << compilerInfo << ','
 			<< r.name << ','
 			<< r.iterations << ','
-			<< r.avgMs << ','
-			<< r.totalMs << '\n';
+			<< r.avgUs << ','
+			<< r.totalUs << '\n';
 
-		std::cout << r.name << ": " << r.avgMs << " ms avg (" << r.totalMs << " ms total)\n";
+		std::cout << r.name << ": " << r.avgUs << " us avg (" << r.totalUs << " us total)\n";
 	}
 
 	std::cout << "\nResults written to: " << filePath << "\n";
@@ -110,29 +113,58 @@ int main()
 
 
 	std::filesystem::path const mergedFile{ resultsDir / "all_results.csv" };
-	// Check if master file exists; if not, create header
-	bool needsHeader = !std::filesystem::exists(mergedFile);
 
-	std::ofstream merged(mergedFile, std::ios::app);
+	std::vector<std::string> oldLines;
+	if (std::filesystem::exists(mergedFile))
+	{
+		std::ifstream in(mergedFile);
+		std::string line;
+		bool firstLine{ true };
+		while (std::getline(in, line))
+		{
+			if (firstLine) { firstLine = false; continue; }
+			oldLines.push_back(line);
+		}
+	}
+
+	for (auto const& r : results)
+	{
+		std::ostringstream oss;
+		oss << compilerInfo << ','
+			<< r.name << ','
+			<< r.iterations << ','
+			<< r.avgUs << ','
+			<< r.totalUs;
+		oldLines.push_back(oss.str());
+	}
+
+	std::sort(oldLines.begin(), oldLines.end(),
+		[](std::string const& a, std::string const& b)
+		{
+			auto const aNameStart{ a.find(',') + 1 };
+			auto const bNameStart{ b.find(',') + 1 };
+			auto const aNameEnd{ a.find(',', aNameStart) };
+			auto const bNameEnd{ b.find(',', bNameStart) };
+			std::string const aName{ a.substr(aNameStart, aNameEnd - aNameStart) };
+			std::string const bName{ b.substr(bNameStart, bNameEnd - bNameStart) };
+			if (aName == bName)
+			{
+				return a < b;
+			}
+			return aName < bName;
+		});
+
+	std::ofstream merged(mergedFile, std::ios::trunc);
 	if (!merged.is_open())
 	{
 		std::cerr << "Error: could not write to " << mergedFile << "\n";
 		return 1;
 	}
 
-	if (needsHeader)
+	merged << "Compiler,Benchmark,Iterations,Average(us),Total(us)\n";
+	for (auto const& line : oldLines)
 	{
-		merged << "Compiler,Benchmark,Iterations,Average(ms),Total(ms)\n";
-	}
-
-	// Append results
-	for (auto const& r : results)
-	{
-		merged << compilerInfo << ','
-			<< r.name << ','
-			<< r.iterations << ','
-			<< r.avgMs << ','
-			<< r.totalMs << '\n';
+		merged << line << "\n";
 	}
 
 	std::cout << "Appended results to: " << mergedFile << "\n";
