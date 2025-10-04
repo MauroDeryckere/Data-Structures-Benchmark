@@ -1,9 +1,18 @@
 Write-Host "=== Installing compilers and build tools ==="
 
+# Ensure script is running as Administrator
+If (-NOT ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator"))
+{
+    Write-Warning "Restarting script with elevated permissions..."
+    Start-Process powershell -ArgumentList "-ExecutionPolicy Bypass -File `"$PSCommandPath`"" -Verb RunAs
+    Exit
+}
+
 $root = "$PSScriptRoot/compilers" 
 
 $gccListFile = Join-Path $PSScriptRoot "gcc_versions.txt"
 $clangListFile = Join-Path $PSScriptRoot "clang_versions.txt"
+$msvcListFile = Join-Path $PSScriptRoot "msvc_versions.txt"
 
 New-Item -ItemType Directory -Force -Path $root | Out-Null
 
@@ -45,9 +54,95 @@ function Extract-ArchiveSafe($file, $dest)
 # MSVC
 # ------------------------------
 Write-Host "`n[1/3] Installing MSVC Build Tools..."
-winget install --id Microsoft.VisualStudio.2022.BuildTools `
-    --silent --accept-package-agreements --accept-source-agreements `
-    --override "--add Microsoft.VisualStudio.Component.VC.Tools.x86.x64"
+
+$msvcVersions = Get-Content $msvcListFile | Where-Object { $_.Trim() -ne "" } | ForEach-Object {
+    $parts = $_ -split "\|"
+    @{
+        Year = $parts[0].Trim()
+        PackageId = $parts[1].Trim()
+        Components = $parts[2..($parts.Length - 1)] -join " "
+        ToolsetVer = if ($parts.Length -ge 4) { $parts[3].Trim() } else { "latest" }
+    }
+}
+
+# Ensure VS Installer is available (needed for specific toolset versions)
+$vsInstaller = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vs_installer.exe"
+if (-not (Test-Path $vsInstaller)) 
+{
+    Write-Host "Downloading Visual Studio Installer..."
+    Invoke-WebRequest -Uri "https://aka.ms/vs/17/release/vs_installer.exe" -OutFile "vs_installer.exe"
+    Start-Process -FilePath ".\vs_installer.exe" -ArgumentList "--quiet --wait" -Wait
+    $vsInstaller = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vs_installer.exe"
+}
+
+foreach ($msvc in $msvcVersions) 
+{
+    Write-Host "`nInstalling MSVC $($msvc.Year) Build Tools (Toolset: $($msvc.ToolsetVer))..."
+   
+    try 
+    {
+        if ($msvc.ToolsetVer -eq "latest") 
+        {
+            # Install base Build Tools + latest VC toolset via winget
+            winget install --id $msvc.PackageId `
+                --silent --accept-package-agreements --accept-source-agreements `
+                --override "--add $($msvc.Components)"
+        }
+        else 
+        {
+            # Dynamically generate a .vsconfig for the requested toolset version
+            $configDir = "$PSScriptRoot\configs"
+            if (-not (Test-Path $configDir)) { New-Item -ItemType Directory -Path $configDir | Out-Null }
+            $vsconfigPath = Join-Path $configDir "msvc-$($msvc.Year)-$($msvc.ToolsetVer).vsconfig"
+
+            $vsconfig = @{
+                version = "1.0"
+                components = @(
+                    @{
+                        id = "Microsoft.VisualStudio.Workload.VCTools"
+                    },
+                    @{
+                        id = "Microsoft.VisualStudio.Component.VC.Tools.x86.x64"
+                        version = $msvc.ToolsetVer
+                    }
+                )
+            }
+
+            $vsconfig | ConvertTo-Json -Depth 4 | Set-Content -Path $vsconfigPath -Encoding UTF8
+            Write-Host "Generated $vsconfigPath for MSVC toolset $($msvc.ToolsetVer)"
+
+            # Map VS year -> correct product/channel
+            switch ($msvc.Year) {
+                "2022" {
+                    $productId = "Microsoft.VisualStudio.Product.BuildTools"
+                    $channelId = "VisualStudio.17.Release"
+                }
+                "2019" {
+                    $productId = "Microsoft.VisualStudio.Product.BuildTools"
+                    $channelId = "VisualStudio.16.Release"
+                }
+                default {
+                    throw "Unsupported Visual Studio year: $($msvc.Year)"
+                }
+            }
+
+            # Run installer with product + channel + config
+            $args = @(
+                "install",
+                "--quiet", "--norestart",
+                "--productId", $productId,
+                "--channelId", $channelId,
+                "--config", "`"$vsconfigPath`""
+            )
+            Start-Process -FilePath $vsInstaller -ArgumentList $args -Wait -NoNewWindow
+        }
+    }
+    catch 
+    {
+        Write-Warning "Failed to install MSVC $($msvc.Year): $_"
+    }
+}
+
 Write-Host "MSVC installed. Use vcvarsall.bat or Developer Command Prompt."
 # ------------------------------
 

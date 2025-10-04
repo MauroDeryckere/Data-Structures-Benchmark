@@ -1,0 +1,12 @@
+﻿{
+    "version":  "1.0",
+    "components":  [
+                       {
+                           "id":  "Microsoft.VisualStudio.Workload.VCTools"
+                       },
+                       {
+                           "id":  "Microsoft.VisualStudio.Component.VC.Tools.x86.x64",
+                           "version":  "14.38.33135"
+                       }
+                   ]
+}

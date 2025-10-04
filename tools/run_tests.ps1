@@ -1,5 +1,13 @@
 Write-Host "=== Building and running with all compilers ==="
 
+# Ensure script is running as Administrator
+If (-NOT ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator"))
+{
+    Write-Warning "Restarting script with elevated permissions..."
+    Start-Process powershell -ArgumentList "-ExecutionPolicy Bypass -File `"$PSCommandPath`"" -Verb RunAs
+    Exit
+}
+
 $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
 if (-not (Test-Path $vswhere)) 
 {
@@ -14,6 +22,7 @@ $compRoot  = (Join-Path $PSScriptRoot "compilers").ToString()
 
 $gccListFile = Join-Path $PSScriptRoot "gcc_versions.txt"
 $clangListFile = Join-Path $PSScriptRoot "clang_versions.txt"
+$msvcListFile = Join-Path $PSScriptRoot "msvc_versions.txt"
 
 New-Item -ItemType Directory -Force -Path "$src/results" | Out-Null
 
@@ -63,49 +72,63 @@ Write-Host "`n[1/3] MSVC..."
 
 if (Test-Path $vswhere) 
 {
-    # Find the latest Visual Studio installation with VC++ tools
-    $vsInstall = & $vswhere -latest -products * `
-        -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 `
-        -property installationPath
-
-    if ($vsInstall) 
+    $msvcVersions = Get-Content $msvcListFile | Where-Object { $_.Trim() -ne "" } | ForEach-Object `
     {
-        # Build the full path to vcvarsall.bat
-        $vcvars = Join-Path $vsInstall "VC\Auxiliary\Build\vcvarsall.bat"
+        $parts = $_ -split "\|"
+        @{
+            Year       = $parts[0].Trim()
+            Generator  = $parts[1].Trim()
+        }
+    }
 
-        if (Test-Path $vcvars) 
+    foreach ($msvc in $msvcVersions) 
+    {
+        Write-Host "=== Building with MSVC $($msvc.Year) ==="
+
+            # Find the latest Visual Studio installation with VC++ tools
+        $vsInstall = & $vswhere -latest -products * `
+            -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 `
+            -property installationPath
+
+        if ($vsInstall) 
         {
-            Write-Host "Using vcvarsall.bat at $vcvars"
+            # Build the full path to vcvarsall.bat
+            $vcvars = Join-Path $vsInstall "VC\Auxiliary\Build\vcvarsall.bat"
 
-            # Run vcvarsall.bat for 64-bit builds and capture the environment
-            $arch = "x64"
-            cmd /c "`"$vcvars`" $arch && set" 2>$null | ForEach-Object `
+            if (Test-Path $vcvars) 
             {
-                if ($_ -match "^(.*?)=(.*)$") 
+                Write-Host "Using vcvarsall.bat at $vcvars"
+
+                # Run vcvarsall.bat for 64-bit builds and capture the environment
+                $arch = "x64"
+                cmd /c "`"$vcvars`" $arch && set" 2>$null | ForEach-Object `
                 {
-                    Set-Item -Force -Path "Env:$($matches[1])" -Value $matches[2]
+                    if ($_ -match "^(.*?)=(.*)$") 
+                    {
+                        Set-Item -Force -Path "Env:$($matches[1])" -Value $matches[2]
+                    }
                 }
+                Write-Host "MSVC $($msvc.Year) environment set up for $arch"
+
+
+                $msvcBuild = Join-Path $buildRoot "msvc-$($msvc.Year)"
+                $msvcExe   = Join-Path $msvcBuild "bin/Release/Project.exe"
+                Clean-Dir $msvcBuild
+
+                cmake -G "$($msvc.Generator)" -A $arch -B "$msvcBuild" -S "$src"
+                cmake --build "$msvcBuild" --config Release
+
+                Run-Exe $msvcExe
             }
-            Write-Host "MSVC environment set up for $arch"
-
-            $msvcBuild = Join-Path $buildRoot "msvc"
-            $msvcExe   = Join-Path $msvcBuild "bin/Release/Project.exe"
-            Clean-Dir $msvcBuild
-
-            cmake -G "Visual Studio 17 2022" -A x64 -B "$msvcBuild" -S "$src"
-            cmake --build "$msvcBuild" --config Release
-
-            Run-Exe $msvcExe
+            else 
+            {
+                Write-Warning "vcvarsall.bat not found at $vcvars."
+            }
         }
         else 
         {
-            Write-Warning "vcvarsall.bat not found at $vcvars."
+            Write-Warning "No Visual Studio installation with VC++ tools found."
         }
-    }
-    else 
-    {
-        Write-Warning "No Visual Studio installation with VC++ tools found."
-    }
 }
 else
 {
