@@ -1,13 +1,5 @@
 Write-Host "=== Building and running with all compilers ==="
 
-# Ensure script is running as Administrator
-If (-NOT ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator"))
-{
-    Write-Warning "Restarting script with elevated permissions..."
-    Start-Process powershell -ArgumentList "-ExecutionPolicy Bypass -File `"$PSCommandPath`"" -Verb RunAs
-    Exit
-}
-
 $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
 if (-not (Test-Path $vswhere)) 
 {
@@ -72,12 +64,20 @@ Write-Host "`n[1/3] MSVC..."
 
 if (Test-Path $vswhere) 
 {
-    $msvcVersions = Get-Content $msvcListFile | Where-Object { $_.Trim() -ne "" } | ForEach-Object `
-    {
+    $generatorMap = @{
+        "2022" = "Visual Studio 17 2022"
+        "2019" = "Visual Studio 16 2019"
+        "2017" = "Visual Studio 15 2017"
+    }
+
+    $msvcVersions = Get-Content $msvcListFile | Where-Object { $_.Trim() -ne "" } | ForEach-Object {
         $parts = $_ -split "\|"
         @{
             Year       = $parts[0].Trim()
-            Generator  = $parts[1].Trim()
+            PackageId  = $parts[1].Trim()
+            Components = $parts[2].Trim()
+            ToolsetVer = $parts[3].Trim()
+            Generator  = $generatorMap[$parts[0].Trim()]
         }
     }
 
@@ -85,50 +85,60 @@ if (Test-Path $vswhere)
     {
         Write-Host "=== Building with MSVC $($msvc.Year) ==="
 
-            # Find the latest Visual Studio installation with VC++ tools
-        $vsInstall = & $vswhere -latest -products * `
+        # Find all installs for that year
+        $vsInstalls = & $vswhere -all -products * `
             -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 `
-            -property installationPath
+            -property installationPath | Where-Object { $_ -like "*$($msvc.Year)*" }
 
-        if ($vsInstall) 
-        {
-            # Build the full path to vcvarsall.bat
+        if (-not $vsInstalls) {
+            Write-Warning "No Visual Studio $($msvc.Year) installation found."
+            continue
+        }
+
+        foreach ($vsInstall in $vsInstalls) {
+            $toolsRoot = Join-Path $vsInstall "VC\Tools\MSVC"
+
+            if (-not (Test-Path $toolsRoot)) {
+                continue
+            }
+
+            # If "latest", pick the highest subfolder
+            if ($msvc.ToolsetVer -eq "latest") {
+                $selectedVer = Get-ChildItem $toolsRoot | Sort-Object Name -Descending | Select-Object -First 1
+            } else {
+                $selectedVer = Get-ChildItem $toolsRoot | Where-Object { $_.Name -eq $msvc.ToolsetVer }
+            }
+
+            if (-not $selectedVer) {
+                Write-Warning "Toolset $($msvc.ToolsetVer) not found under $toolsRoot"
+                continue
+            }
+
+            Write-Host "Using VC toolset: $($selectedVer.Name)"
+
+            # Setup environment via vcvarsall
             $vcvars = Join-Path $vsInstall "VC\Auxiliary\Build\vcvarsall.bat"
+            $arch = "x64"
 
-            if (Test-Path $vcvars) 
-            {
-                Write-Host "Using vcvarsall.bat at $vcvars"
-
-                # Run vcvarsall.bat for 64-bit builds and capture the environment
-                $arch = "x64"
-                cmd /c "`"$vcvars`" $arch && set" 2>$null | ForEach-Object `
-                {
-                    if ($_ -match "^(.*?)=(.*)$") 
-                    {
-                        Set-Item -Force -Path "Env:$($matches[1])" -Value $matches[2]
-                    }
+            cmd /c "`"$vcvars`" $arch -vcvars_ver=$($selectedVer.Name) && set" 2>$null | ForEach-Object {
+                if ($_ -match "^(.*?)=(.*)$") {
+                    Set-Item -Force -Path "Env:$($matches[1])" -Value $matches[2]
                 }
-                Write-Host "MSVC $($msvc.Year) environment set up for $arch"
-
-
-                $msvcBuild = Join-Path $buildRoot "msvc-$($msvc.Year)"
-                $msvcExe   = Join-Path $msvcBuild "bin/Release/Project.exe"
-                Clean-Dir $msvcBuild
-
-                cmake -G "$($msvc.Generator)" -A $arch -B "$msvcBuild" -S "$src"
-                cmake --build "$msvcBuild" --config Release
-
-                Run-Exe $msvcExe
             }
-            else 
-            {
-                Write-Warning "vcvarsall.bat not found at $vcvars."
-            }
+
+            Write-Host "Environment ready for MSVC $($msvc.Year) $($selectedVer.Name)"
+
+            # Build dir
+            $msvcBuild = Join-Path $buildRoot "msvc-$($msvc.Year)-$($selectedVer.Name)"
+            $msvcExe   = Join-Path $msvcBuild "bin/Release/Project.exe"
+            Clean-Dir $msvcBuild
+
+            cmake -G "$($msvc.Generator)" -A $arch -B "$msvcBuild" -S "$src"
+            cmake --build "$msvcBuild" --config Release
+
+            Run-Exe $msvcExe
         }
-        else 
-        {
-            Write-Warning "No Visual Studio installation with VC++ tools found."
-        }
+    }
 }
 else
 {

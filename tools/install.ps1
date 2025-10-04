@@ -95,17 +95,24 @@ foreach ($msvc in $msvcVersions)
             if (-not (Test-Path $configDir)) { New-Item -ItemType Directory -Path $configDir | Out-Null }
             $vsconfigPath = Join-Path $configDir "msvc-$($msvc.Year)-$($msvc.ToolsetVer).vsconfig"
 
+            # .vsconfig must only contain component IDs (strings) — NOT objects with "id"/"version"
+            $components = @(
+                "Microsoft.VisualStudio.Workload.VCTools"
+            )
+
+            # For specific toolset versions, the component IDs are versioned packages:
+            # v142 (14.2x) => Microsoft.VisualStudio.Component.VC.v142.x86.x64
+            # v143 (14.3x) => Microsoft.VisualStudio.Component.VC.Tools.x86.x64
+            if ($msvc.ToolsetVer -match "^14\.2") {
+                $components += "Microsoft.VisualStudio.Component.VC.v142.x86.x64"
+            }
+            else {
+                $components += "Microsoft.VisualStudio.Component.VC.Tools.x86.x64"
+            }
+
             $vsconfig = @{
                 version = "1.0"
-                components = @(
-                    @{
-                        id = "Microsoft.VisualStudio.Workload.VCTools"
-                    },
-                    @{
-                        id = "Microsoft.VisualStudio.Component.VC.Tools.x86.x64"
-                        version = $msvc.ToolsetVer
-                    }
-                )
+                components = $components
             }
 
             $vsconfig | ConvertTo-Json -Depth 4 | Set-Content -Path $vsconfigPath -Encoding UTF8
