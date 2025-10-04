@@ -1,12 +1,5 @@
 Write-Host "=== Building and running with all compilers ==="
 
-$vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
-if (-not (Test-Path $vswhere)) 
-{
-    Write-Error "vswhere.exe not found at $vswhere. Please ensure Visual Studio Build Tools are installed."
-    exit 1
-}
-
 # Setup paths
 $src       = (Resolve-Path "$PSScriptRoot/..").ToString()
 $buildRoot = (Join-Path $PSScriptRoot "build").ToString()
@@ -59,57 +52,50 @@ function To-MsysPath($path)
 # ------------------------------
 # MSVC
 # ------------------------------
-Write-Host "`n[1/3] MSVC..."
+Write-Host "[1/3] MSVC..."
+$vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
 
 if (Test-Path $vswhere) 
 {
-    # Find the latest Visual Studio installation with VC++ tools
     $vsInstall = & $vswhere -latest -products * `
         -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 `
         -property installationPath
 
     if ($vsInstall) 
     {
-        # Build the full path to vcvarsall.bat
-        $vcvars = Join-Path $vsInstall "VC\Auxiliary\Build\vcvarsall.bat"
-
+        $vcvars = Join-Path $vsInstall "VC\Auxiliary\Build\vcvars64.bat"
         if (Test-Path $vcvars) 
         {
-            Write-Host "Using vcvarsall.bat at $vcvars"
+            Write-Host "Using MSVC from $vcvars"
 
-            # Run vcvarsall.bat for 64-bit builds and capture the environment
-            $arch = "x64"
-            cmd /c "`"$vcvars`" $arch && set" 2>$null | ForEach-Object `
-            {
-                if ($_ -match "^(.*?)=(.*)$") 
-                {
+            # Load environment
+            cmd /c "`"$vcvars`" x64 && set" 2>$null | ForEach-Object {
+                if ($_ -match "^(.*?)=(.*)$") {
                     Set-Item -Force -Path "Env:$($matches[1])" -Value $matches[2]
                 }
             }
-            Write-Host "MSVC environment set up for $arch"
 
             $msvcBuild = Join-Path $buildRoot "msvc"
             $msvcExe   = Join-Path $msvcBuild "bin/Release/Project.exe"
             Clean-Dir $msvcBuild
 
-            cmake -G "Visual Studio 17 2022" -A x64 -B "$msvcBuild" -S "$src"
-            cmake --build "$msvcBuild" --config Release
-
+            cmake -G "Visual Studio 17 2022" -A x64 -B $msvcBuild -S $src
+            cmake --build $msvcBuild --config Release
             Run-Exe $msvcExe
-        }
+        } 
         else 
         {
-            Write-Warning "vcvarsall.bat not found at $vcvars."
+            Write-Warning "vcvars64.bat not found at $vcvars."
         }
-    }
+    } 
     else 
     {
-        Write-Warning "No Visual Studio installation with VC++ tools found."
+        Write-Warning "No Visual Studio with C++ tools found."
     }
-}
-else
+} 
+else 
 {
-    Write-Warning "vswhere.exe not found. Skipping MSVC."
+    Write-Warning "vswhere.exe not found — skipping MSVC."
 }
 # ------------------------------
 

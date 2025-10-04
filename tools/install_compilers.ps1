@@ -44,11 +44,9 @@ function Extract-ArchiveSafe($file, $dest)
 # ------------------------------
 # MSVC
 # ------------------------------
-Write-Host "`n[1/3] Installing MSVC Build Tools..."
-winget install --id Microsoft.VisualStudio.2022.BuildTools `
-    --silent --accept-package-agreements --accept-source-agreements `
-    --override "--add Microsoft.VisualStudio.Component.VC.Tools.x86.x64"
-Write-Host "MSVC installed. Use vcvarsall.bat or Developer Command Prompt."
+
+# Assume user has MSVC / visual studio installed for now
+
 # ------------------------------
 
 
