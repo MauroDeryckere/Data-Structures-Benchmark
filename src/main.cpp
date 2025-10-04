@@ -57,7 +57,8 @@ void BenchmarkLoop()
 	int x{ 0 };
 	std::vector<int> vec;
 
-	for (int i{ 0 }; i < 100'000; ++i)
+	//for (int i{ 0 }; i < 100'000; ++i)
+	for (int i{ 0 }; i < 100; ++i)
 	{
 		x += i;
 		x *= 2;
@@ -105,6 +106,36 @@ int main()
 	}
 
 	std::cout << "\nResults written to: " << filePath << "\n";
+
+
+
+	std::filesystem::path const mergedFile{ resultsDir / "all_results.csv" };
+	// Check if master file exists; if not, create header
+	bool needsHeader = !std::filesystem::exists(mergedFile);
+
+	std::ofstream merged(mergedFile, std::ios::app);
+	if (!merged.is_open())
+	{
+		std::cerr << "Error: could not write to " << mergedFile << "\n";
+		return 1;
+	}
+
+	if (needsHeader)
+	{
+		merged << "Compiler,Benchmark,Iterations,Average(ms),Total(ms)\n";
+	}
+
+	// Append results
+	for (auto const& r : results)
+	{
+		merged << compilerInfo << ','
+			<< r.name << ','
+			<< r.iterations << ','
+			<< r.avgMs << ','
+			<< r.totalMs << '\n';
+	}
+
+	std::cout << "Appended results to: " << mergedFile << "\n";
 
 	return 0;
 }
