@@ -94,6 +94,9 @@ int main()
 	}
 
 	// Write CSV header
+
+	out.imbue(std::locale::classic());
+	out << std::fixed << std::setprecision(6);
 	out << "Compiler,Benchmark,Iterations,Average(us),Total(us)\n";
 
 
@@ -155,12 +158,15 @@ int main()
 		});
 
 	std::ofstream merged(mergedFile, std::ios::trunc);
+
 	if (!merged.is_open())
 	{
 		std::cerr << "Error: could not write to " << mergedFile << "\n";
 		return 1;
 	}
 
+	merged.imbue(std::locale::classic());
+	merged << std::fixed << std::setprecision(6);
 	merged << "Compiler,Benchmark,Iterations,Average(us),Total(us)\n";
 	for (auto const& line : oldLines)
 	{
