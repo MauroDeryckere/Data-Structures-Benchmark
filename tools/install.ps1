@@ -143,7 +143,7 @@ foreach ($clang in $clangVersions)
 
     New-Item -ItemType Directory -Path $outDir | Out-Null
 
-    $tarUrl = "$($clang.BaseUrl)/clang+llvm-$($clang.Ver)-x86_64-pc-windows-msvc.tar.xz"
+    $tarUrl = "$($clang.Url)/clang+llvm-$($clang.Ver)-x86_64-pc-windows-msvc.tar.xz"
     $downloadFile = Join-Path $outDir "clang.tar.xz"
 
     try 
