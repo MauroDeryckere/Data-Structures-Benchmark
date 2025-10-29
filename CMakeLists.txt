@@ -26,7 +26,14 @@ message(STATUS "Results will be written to: ${RESULTS_DIR}")
 
 add_executable(Project
     src/main.cpp
-)
+    "src/benchmark.h" 
+    
+ "src/singleton.h")
+
+
+add_subdirectory(libs)
+target_link_libraries(Project PRIVATE Libs) 
+
 
 # Force C++23 test build
 target_compile_features(Project PRIVATE cxx_std_23)

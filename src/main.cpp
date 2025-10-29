@@ -1,11 +1,26 @@
 #include <iostream>
-#include <string>
-#include <vector>
-
 #include <filesystem>
 #include <fstream>
 
-#include <chrono>
+#include <SG14/flat_map.h>
+#include <map>
+#include <unordered_map>
+
+#include <string>
+#include <vector>
+
+#include "benchmark.h"
+
+stdext::flat_map<int, float> g_TestFlatMap;
+std::map<int, float> g_TestMap;
+std::unordered_map<int, float> g_TestUnorderedMap;
+
+uint32_t constexpr TEST_MAP_SIZE{ 10'000 };
+
+[[nodiscard]] static constexpr float GenerateValue(uint32_t i) noexcept
+{
+	return static_cast<float>((i * 37) % 1000) / 1000.0f;
+}
 
 [[nodiscard]] static std::string GetCompilerInfo() noexcept
 {
@@ -25,44 +40,37 @@
 #endif
 }
 
-struct BenchmarkResult final
+void BenchmarkFlatMapEmplace()
 {
-	std::string name;
-	size_t iterations;
-	double avgUs;
-	double totalUs;
-};
+	g_TestFlatMap.clear();
 
-using BenchmarkFunc = void(*)();
-
-[[nodiscard]] BenchmarkResult RunBenchmark(std::string const& name, BenchmarkFunc func, size_t iterations = 1'000) noexcept
-{
-	using namespace std::chrono;
-	auto const start{ high_resolution_clock::now() };
-
-	for (size_t i{ 0 }; i < iterations; ++i)
+	for (uint32_t i{ 0 }; i < TEST_MAP_SIZE; ++i)
 	{
-		func();
+		float const value{ static_cast<float>((i * 37) % 1000) / 1000.0f };
+		g_TestFlatMap.emplace(i, value);
 	}
-
-	auto const end{ high_resolution_clock::now() };
-	auto const totalUs{ duration<double, std::micro>(end - start).count() };
-	auto const avgUs{ totalUs / iterations };
-
-	return { name, iterations, avgUs, totalUs };
 }
 
-void BenchmarkLoop()
-{
-	int x{ 0 };
-	std::vector<int> vec;
+void BenchmarkMapEmplace()
+{	
+	g_TestMap.clear();
 
-	for (int i{ 0 }; i < 100'000; ++i)
+	for (uint32_t i{ 0 }; i < TEST_MAP_SIZE; ++i)
 	{
-		x += i;
-		x *= 2;
-		vec.emplace_back(x);
-		vec.back() %= 1000;
+		float const value{ static_cast<float>((i * 37) % 1000) / 1000.0f };
+		g_TestMap.emplace(i, value);
+	}
+}
+
+
+void BenchmarkUnorderedMapEmplace()
+{
+	g_TestUnorderedMap.clear();
+
+	for (uint32_t i{ 0 }; i < TEST_MAP_SIZE; ++i)
+	{
+		float const value{ static_cast<float>((i * 37) % 1000) / 1000.0f };
+		g_TestUnorderedMap.emplace(i, value);
 	}
 }
 
@@ -81,10 +89,14 @@ int main()
 	std::filesystem::create_directories(resultsDir);
 	std::filesystem::path const filePath{ resultsDir / ("bench_results_" + safeName + ".csv") };
 
-	std::vector<BenchmarkResult> results;
-	results.emplace_back(RunBenchmark("Loop", BenchmarkLoop, 10));
-	results.emplace_back(RunBenchmark("Loop2", BenchmarkLoop, 10));
-	results.emplace_back(RunBenchmark("Loop3", BenchmarkLoop, 10));
+#pragma region benchmarking
+	auto& benchmarkReg{ Mau::BenchmarkRegistry::GetInstance() };
+	benchmarkReg.Register("Flat Map Emplace", "Map Emplace", BenchmarkFlatMapEmplace, 10);
+	benchmarkReg.Register("Map Emplace", "Map Emplace", BenchmarkMapEmplace, 10);
+	benchmarkReg.Register("Unordered Map Emplace", "Map Emplace", BenchmarkUnorderedMapEmplace, 10);
+
+	auto const results{ benchmarkReg.RunAll() };
+#pragma endregion
 
 	std::ofstream out(filePath);
 	if (!out.is_open())
@@ -94,19 +106,21 @@ int main()
 	}
 
 	// Write CSV header
-
 	out.imbue(std::locale::classic());
 	out << std::fixed << std::setprecision(6);
-	out << "Compiler,Benchmark,Iterations,Average(us),Total(us)\n";
-
+	out << "Compiler,Benchmark,Category,Iterations,Average(us),Total(us),Median(Us),Min(Us),Max(Us)\n";
 
 	for (auto const& r : results)
 	{
 		out << compilerInfo << ','
 			<< r.name << ','
+			<< r.category << ','
 			<< r.iterations << ','
 			<< r.avgUs << ','
-			<< r.totalUs << '\n';
+			<< r.totalUs << ','
+			<< r.medianUs << ','
+			<< r.minUs << ','
+			<< r.maxUs << '\n';
 
 		std::cout << r.name << ": " << r.avgUs << " us avg (" << r.totalUs << " us total)\n";
 	}
@@ -126,35 +140,55 @@ int main()
 		while (std::getline(in, line))
 		{
 			if (firstLine) { firstLine = false; continue; }
-			oldLines.push_back(line);
+			oldLines.emplace_back(line);
 		}
 	}
 
 	for (auto const& r : results)
 	{
 		std::ostringstream oss;
-		oss << compilerInfo << ','
+		out << compilerInfo << ','
 			<< r.name << ','
+			<< r.category << ','
 			<< r.iterations << ','
 			<< r.avgUs << ','
-			<< r.totalUs;
-		oldLines.push_back(oss.str());
+			<< r.totalUs << ','
+			<< r.medianUs << ','
+			<< r.minUs << ','
+			<< r.maxUs;
+
+		oldLines.emplace_back(oss.str());
 	}
 
-	std::sort(oldLines.begin(), oldLines.end(),
-		[](std::string const& a, std::string const& b)
+	auto getField
+	{
+		[](std::string const& line, size_t index) -> std::string 
 		{
-			auto const aNameStart{ a.find(',') + 1 };
-			auto const bNameStart{ b.find(',') + 1 };
-			auto const aNameEnd{ a.find(',', aNameStart) };
-			auto const bNameEnd{ b.find(',', bNameStart) };
-			std::string const aName{ a.substr(aNameStart, aNameEnd - aNameStart) };
-			std::string const bName{ b.substr(bNameStart, bNameEnd - bNameStart) };
-			if (aName == bName)
+			size_t start{ 0};
+			for (size_t i{ 0 }; i < index; ++i)
 			{
-				return a < b;
+				start = line.find(',', start) + 1;
 			}
-			return aName < bName;
+			size_t const end{ line.find(',', start) };
+
+			return line.substr(start, end - start);
+		} 
+	};
+
+	std::sort(oldLines.begin(), oldLines.end(),
+		[getField](std::string const& a, std::string const& b)
+		{
+			std::string const aCategory{ getField(a, 2) };
+			std::string const bCategory{ getField(b, 2) };
+
+			if (aCategory == bCategory) 
+			{
+				std::string const aName{ getField(a, 1) };
+				std::string const bName{ getField(b, 1) };
+				return aName < bName;
+			}
+
+			return aCategory < bCategory;
 		});
 
 	std::ofstream merged(mergedFile, std::ios::trunc);
