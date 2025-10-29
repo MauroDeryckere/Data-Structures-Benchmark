@@ -46,7 +46,7 @@ namespace Mau
 
 			for (auto const& b : m_Benchmarks) 
 			{
-				if (categoryFilter && *categoryFilter != b.category)
+				if (categoryFilter && (*categoryFilter) != b.category)
 				{
 					continue;
 				}

@@ -40,6 +40,31 @@ uint32_t constexpr TEST_MAP_SIZE{ 10'000 };
 #endif
 }
 
+void BenchmarkFlatMapIterate()
+{
+	for (auto const& item : g_TestFlatMap)
+	{
+		item.second *= 2;
+	}
+}
+
+void BenchmarkMapIterate()
+{
+	for (auto& item : g_TestMap)
+	{
+		item.second *= 2;
+	}
+}
+
+
+void BenchmarkUnorderedMapIterate()
+{
+	for (auto& item : g_TestUnorderedMap)
+	{
+		item.second *= 2;
+	}
+}
+
 void BenchmarkFlatMapEmplace()
 {
 	g_TestFlatMap.clear();
@@ -95,6 +120,11 @@ int main()
 	benchmarkReg.Register("Map Emplace", "Map Emplace", BenchmarkMapEmplace, 10);
 	benchmarkReg.Register("Unordered Map Emplace", "Map Emplace", BenchmarkUnorderedMapEmplace, 10);
 
+	benchmarkReg.Register("Flat Map Iterate", "Map Iterate", BenchmarkFlatMapIterate, 10);
+	benchmarkReg.Register("Map Iterate", "Map Iterate", BenchmarkMapIterate, 10);
+	benchmarkReg.Register("Unordered Map Iterate", "Map Iterate", BenchmarkUnorderedMapIterate, 10);
+
+	
 	auto const results{ benchmarkReg.RunAll() };
 #pragma endregion
 
@@ -136,10 +166,15 @@ int main()
 	{
 		std::ifstream in(mergedFile);
 		std::string line;
-		bool firstLine{ true };
+		int skip{ 0 };
 		while (std::getline(in, line))
 		{
-			if (firstLine) { firstLine = false; continue; }
+			if (skip != 2) 
+			{
+				++skip;
+				continue; 
+			}
+
 			oldLines.emplace_back(line);
 		}
 	}
@@ -147,7 +182,7 @@ int main()
 	for (auto const& r : results)
 	{
 		std::ostringstream oss;
-		out << compilerInfo << ','
+		oss << compilerInfo << ','
 			<< r.name << ','
 			<< r.category << ','
 			<< r.iterations << ','
@@ -201,7 +236,23 @@ int main()
 
 	merged.imbue(std::locale::classic());
 	merged << std::fixed << std::setprecision(6);
-	merged << "Compiler,Benchmark,Iterations,Average(us),Total(us)\n";
+
+	// Get current timestamp
+	auto const now = std::chrono::system_clock::now();
+	std::time_t const now_c = std::chrono::system_clock::to_time_t(now);
+	std::tm tm{};
+	#ifdef _WIN32
+		localtime_s(&tm, &now_c);
+	#else
+		localtime_r(&now_c, &tm);
+	#endif
+	char timeBuf[64];
+	std::strftime(timeBuf, sizeof(timeBuf), "%Y-%m-%d %H:%M:%S", &tm);
+
+	// Write date row
+	merged << "Date:," << timeBuf << "\n";
+
+	merged << "Compiler,Benchmark,Category,Iterations,Average(us),Total(us),Median(Us),Min(Us),Max(Us)\n";
 	for (auto const& line : oldLines)
 	{
 		merged << line << "\n";
