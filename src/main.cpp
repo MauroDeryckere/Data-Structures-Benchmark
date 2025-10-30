@@ -1,6 +1,5 @@
 #include <iostream>
 #include <filesystem>
-#include <fstream>
 
 #include <SG14/flat_map.h>
 #include <map>
@@ -19,7 +18,7 @@ uint32_t constexpr TEST_MAP_SIZE{ 1'000'000 };
 
 void BenchmarkFlatMapIterate()
 {
-	float sum = 0.0f;
+	float sum{ 0.0f };
 
 	for (auto const& item : g_TestFlatMap)
 	{
@@ -31,7 +30,7 @@ void BenchmarkFlatMapIterate()
 
 void BenchmarkMapIterate()
 {
-	float sum = 0.0f;
+	float sum{ 0.0f };
 
 	for (auto& item : g_TestMap)
 	{
@@ -44,7 +43,7 @@ void BenchmarkMapIterate()
 
 void BenchmarkUnorderedMapIterate()
 {
-	float sum = 0.0f;
+	float sum{ 0.0f };
 
 	for (auto& item : g_TestUnorderedMap)
 	{

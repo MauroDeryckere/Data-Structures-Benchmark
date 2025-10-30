@@ -6,6 +6,9 @@
 #include <functional>
 #include <algorithm>
 #include <numeric>
+#include <filesystem>
+#include <iostream>
+#include <fstream>
 
 #include <string>
 #include <vector>
@@ -67,12 +70,6 @@ namespace Mau
 
 		static bool WriteCsv(std::filesystem::path const& filePath, std::string const& compilerInfo, std::vector<BenchmarkResult> const& results) noexcept
 		{
-			if (not std::filesystem::exists(filePath))
-			{
-				std::cerr << "Error: could not write to " << filePath << "\n";
-				return false;
-			}
-
 			std::ofstream out(filePath);
 			if (!out.is_open())
 			{
