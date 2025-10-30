@@ -93,6 +93,7 @@ int main()
 	std::string const compilerInfo{ Mau::GetCompilerInfo() };
 	std::cout << "Running benchmarks for: " << compilerInfo << "\n";
 
+	// Sanitize compiler info for file name
 	std::string safeName{ compilerInfo };
 	for (char& c : safeName) 
 	{
@@ -113,141 +114,14 @@ int main()
 	benchmarkReg.Register("Map Iterate", "Map Iterate", BenchmarkMapIterate, 10);
 	benchmarkReg.Register("Unordered Map Iterate", "Map Iterate", BenchmarkUnorderedMapIterate, 10);
 
-	
 	auto const results{ benchmarkReg.RunAll() };
 #pragma endregion
 
-	std::ofstream out(filePath);
-	if (!out.is_open())
-	{
-		std::cerr << "Error: could not write to " << filePath << "\n";
-		return 1;
-	}
-
-	// Write CSV header
-	out.imbue(std::locale::classic());
-	out << std::fixed << std::setprecision(6);
-	out << "Compiler,Benchmark,Category,Iterations,Average(Ms),Total(Ms),Median(Ms),Min(Ms),Max(Ms)\n";
-
-	for (auto const& r : results)
-	{
-		out << compilerInfo << ','
-			<< r.name << ','
-			<< r.category << ','
-			<< r.iterations << ','
-			<< r.avgMs << ','
-			<< r.totalMs << ','
-			<< r.medianMs << ','
-			<< r.minMs << ','
-			<< r.maxMs << '\n';
-
-		std::cout << r.name << ": " << r.avgMs << " Ms avg (" << r.totalMs << " Ms total)\n";
-	}
-
-	std::cout << "\nResults written to: " << filePath << "\n";
-
-
+	benchmarkReg.WriteCsv(filePath, compilerInfo, results);
 
 	std::filesystem::path const mergedFile{ resultsDir / "all_results.csv" };
 
-	std::vector<std::string> oldLines;
-	if (std::filesystem::exists(mergedFile))
-	{
-		std::ifstream in(mergedFile);
-		std::string line;
-		int skip{ 0 };
-		while (std::getline(in, line))
-		{
-			if (skip != 2) 
-			{
-				++skip;
-				continue; 
-			}
-
-			oldLines.emplace_back(line);
-		}
-	}
-
-	for (auto const& r : results)
-	{
-		std::ostringstream oss;
-		oss << compilerInfo << ','
-			<< r.name << ','
-			<< r.category << ','
-			<< r.iterations << ','
-			<< r.avgMs << ','
-			<< r.totalMs << ','
-			<< r.medianMs << ','
-			<< r.minMs << ','
-			<< r.maxMs;
-
-		oldLines.emplace_back(oss.str());
-	}
-
-	auto getField
-	{
-		[](std::string const& line, size_t index) -> std::string 
-		{
-			size_t start{ 0};
-			for (size_t i{ 0 }; i < index; ++i)
-			{
-				start = line.find(',', start) + 1;
-			}
-			size_t const end{ line.find(',', start) };
-
-			return line.substr(start, end - start);
-		} 
-	};
-
-	std::sort(oldLines.begin(), oldLines.end(),
-		[getField](std::string const& a, std::string const& b)
-		{
-			std::string const aCategory{ getField(a, 2) };
-			std::string const bCategory{ getField(b, 2) };
-
-			if (aCategory == bCategory) 
-			{
-				std::string const aName{ getField(a, 1) };
-				std::string const bName{ getField(b, 1) };
-				return aName < bName;
-			}
-
-			return aCategory < bCategory;
-		});
-
-	std::ofstream merged(mergedFile, std::ios::trunc);
-
-	if (!merged.is_open())
-	{
-		std::cerr << "Error: could not write to " << mergedFile << "\n";
-		return 1;
-	}
-
-	merged.imbue(std::locale::classic());
-	merged << std::fixed << std::setprecision(6);
-
-	// Get current timestamp
-	auto const now = std::chrono::system_clock::now();
-	std::time_t const now_c = std::chrono::system_clock::to_time_t(now);
-	std::tm tm{};
-	#ifdef _WIN32
-		localtime_s(&tm, &now_c);
-	#else
-		localtime_r(&now_c, &tm);
-	#endif
-	char timeBuf[64];
-	std::strftime(timeBuf, sizeof(timeBuf), "%Y-%m-%d %H:%M:%S", &tm);
-
-	// Write date row
-	merged << "Date:," << timeBuf << "\n";
-
-	merged << "Compiler,Benchmark,Category,Iterations,Average(Ms),Total(Ms),Median(Ms),Min(Ms),Max(Ms)\n";
-	for (auto const& line : oldLines)
-	{
-		merged << line << "\n";
-	}
-
-	std::cout << "Appended results to: " << mergedFile << "\n";
+	benchmarkReg.AppendToMasterResults(mergedFile, compilerInfo, results);
 
 	return 0;
 }
