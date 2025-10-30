@@ -32,7 +32,7 @@ add_executable(Project
     src/main.cpp
     "src/benchmark.h" 
     
- "src/singleton.h")
+ "src/singleton.h" "src/benchmark_utils.h")
 
 
 add_subdirectory(libs)

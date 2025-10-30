@@ -13,6 +13,9 @@
 #include <chrono>
 #include <optional>
 
+
+#include "benchmark_utils.h"
+
 namespace Mau
 {
 	using BenchmarkFunc = std::function<void()>;
@@ -39,16 +42,21 @@ namespace Mau
 			m_Benchmarks.emplace_back(name, category, func, iterations);
 		}
 
-		[[nodiscard]] std::vector<BenchmarkResult> RunAll(std::optional<std::string> categoryFilter = std::nullopt) const noexcept
+		[[nodiscard]] std::vector<BenchmarkResult> RunAll(std::optional<std::vector <std::string>> categoryFilter = std::nullopt) const noexcept
 		{
 			std::vector<BenchmarkResult> results;
 			results.reserve(m_Benchmarks.size());
 
-			for (auto const& b : m_Benchmarks) 
+			for (auto const& b : m_Benchmarks)
 			{
-				if (categoryFilter && (*categoryFilter) != b.category)
+				if (categoryFilter)
 				{
-					continue;
+					auto const& filters{ (*categoryFilter) };
+					if (!filters.empty() &&
+						std::find(filters.begin(), filters.end(), b.category) == filters.end())
+					{
+						continue;
+					}
 				}
 
 				results.emplace_back(RunBenchmark(b));

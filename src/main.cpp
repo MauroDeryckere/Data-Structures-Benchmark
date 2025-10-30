@@ -11,53 +11,11 @@
 
 #include "benchmark.h"
 
-#if defined(_MSC_VER)
-
-#   include <intrin.h>
-#   pragma intrinsic(_ReadWriteBarrier)
-#   define DO_NOT_OPTIMIZE(x) do { (void)(x); _ReadWriteBarrier(); } while(0)
-#   define CLOBBER_MEMORY()   _ReadWriteBarrier()
-
-#elif defined(__GNUC__) || defined(__clang__)
-
-#   define DO_NOT_OPTIMIZE(x) asm volatile("" : : "g"(x) : "memory")
-#   define CLOBBER_MEMORY()   asm volatile("" ::: "memory")
-
-#else
-
-#   define DO_NOT_OPTIMIZE(x) ((void)x)
-#   define CLOBBER_MEMORY()
-
-#endif
-
 stdext::flat_map<int, float> g_TestFlatMap;
 std::map<int, float> g_TestMap;
 std::unordered_map<int, float> g_TestUnorderedMap;
 
 uint32_t constexpr TEST_MAP_SIZE{ 1'000'000 };
-
-[[nodiscard]] static constexpr float GenerateValue(uint32_t i) noexcept
-{
-	return static_cast<float>((i * 37) % 1000) / 1000.0f;
-}
-
-[[nodiscard]] static std::string GetCompilerInfo() noexcept
-{
-#if defined(__clang__)
-	return "Clang " + std::to_string(__clang_major__) + "." +
-		std::to_string(__clang_minor__) + "." +
-		std::to_string(__clang_patchlevel__);
-#elif defined(_MSC_VER)
-	return "MSVC " + std::to_string(_MSC_VER) +
-		" (full: " + std::to_string(_MSC_FULL_VER) + ")";
-#elif defined(__GNUC__) && !defined(__clang__)
-	return "GCC " + std::to_string(__GNUC__) + "." +
-		std::to_string(__GNUC_MINOR__) + "." +
-		std::to_string(__GNUC_PATCHLEVEL__);
-#else
-	return "Unknown compiler";
-#endif
-}
 
 void BenchmarkFlatMapIterate()
 {
@@ -102,7 +60,7 @@ void BenchmarkFlatMapEmplace()
 
 	for (uint32_t i{ 0 }; i < TEST_MAP_SIZE; ++i)
 	{
-		float const value{ static_cast<float>((i * 37) % 1000) / 1000.0f };
+		float const value{ Mau::GenerateValue(i) };
 		g_TestFlatMap.emplace(i, value);
 	}
 }
@@ -113,7 +71,7 @@ void BenchmarkMapEmplace()
 
 	for (uint32_t i{ 0 }; i < TEST_MAP_SIZE; ++i)
 	{
-		float const value{ static_cast<float>((i * 37) % 1000) / 1000.0f };
+		float const value{ Mau::GenerateValue(i) };
 		g_TestMap.emplace(i, value);
 	}
 }
@@ -125,14 +83,14 @@ void BenchmarkUnorderedMapEmplace()
 
 	for (uint32_t i{ 0 }; i < TEST_MAP_SIZE; ++i)
 	{
-		float const value{ static_cast<float>((i * 37) % 1000) / 1000.0f };
+		float const value{ Mau::GenerateValue(i) };
 		g_TestUnorderedMap.emplace(i, value);
 	}
 }
 
 int main()
 {
-	std::string const compilerInfo{ GetCompilerInfo() };
+	std::string const compilerInfo{ Mau::GetCompilerInfo() };
 	std::cout << "Running benchmarks for: " << compilerInfo << "\n";
 
 	std::string safeName{ compilerInfo };
