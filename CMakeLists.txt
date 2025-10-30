@@ -12,6 +12,10 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 option(RESULTS_IN_SOURCE "Write results to the project root instead of build dir" OFF)
 
+if(NOT CMAKE_BUILD_TYPE)
+    set(CMAKE_BUILD_TYPE Release CACHE STRING "Choose the type of build." FORCE)
+endif()
+
 if (RESULTS_IN_SOURCE)
     set(RESULTS_DIR "${CMAKE_SOURCE_DIR}/results")
 else()
@@ -47,9 +51,15 @@ target_compile_definitions(Project
 if (MSVC)
     add_compile_options(@CMAKE_CXX_FLAGS@)
     set(CMAKE_NINJA_FORCE_RESPONSE_FILE ON CACHE INTERNAL "")
-endif()
+endif() 
 
 if (MINGW)
     message(STATUS "Building with fully static linking for MinGW")
     target_link_options(Project PRIVATE -static -static-libgcc -static-libstdc++)
+endif()
+
+if (MSVC)
+    target_compile_options(Project PRIVATE /O2 /GL /DNDEBUG)
+else()
+    target_compile_options(Project PRIVATE -O3 -march=native -ffast-math -DNDEBUG)
 endif()

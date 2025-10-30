@@ -79,8 +79,9 @@ if (Test-Path $vswhere)
             $msvcExe   = Join-Path $msvcBuild "bin/Release/Project.exe"
             Clean-Dir $msvcBuild
 
-            cmake -G "Visual Studio 17 2022" -A x64 -B $msvcBuild -S $src
+            cmake -G "Visual Studio 17 2022" -A x64 -B $msvcBuild -S $src -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded
             cmake --build $msvcBuild --config Release
+
             Run-Exe $msvcExe
         } 
         else 
@@ -125,7 +126,11 @@ foreach ($clang in $clangVersions)
         $env:CXX = Join-Path $clangBin.FullName "clang++.exe"
 
         Clean-Dir $clangBuild
-        cmake -G "Ninja" -B "$clangBuild" -S "$src"
+        cmake -G "Ninja" -B "$clangBuild" -S "$src" `
+            -DCMAKE_BUILD_TYPE=Release `
+            -DCMAKE_EXE_LINKER_FLAGS="-static" `
+            -DCMAKE_CXX_FLAGS="-O3 -DNDEBUG -march=native -static"
+
         cmake --build "$clangBuild" --config Release
 
         Run-Exe $clangExe
@@ -184,7 +189,9 @@ if (Test-Path $msysPath)
         cmake -G "Ninja" -B $gccBuild -S $src `
             -DCMAKE_BUILD_TYPE=Release `
             -DCMAKE_C_COMPILER="$gccBin\gcc.exe" `
-            -DCMAKE_CXX_COMPILER="$gccBin\g++.exe"
+            -DCMAKE_CXX_COMPILER="$gccBin\g++.exe" `
+            -DCMAKE_EXE_LINKER_FLAGS="-static" `
+            -DCMAKE_CXX_FLAGS="-O3 -DNDEBUG -march=native -static"
 
         cmake --build $gccBuild --config Release
 

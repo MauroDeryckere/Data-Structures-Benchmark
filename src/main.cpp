@@ -11,11 +11,30 @@
 
 #include "benchmark.h"
 
+#if defined(_MSC_VER)
+
+#   include <intrin.h>
+#   pragma intrinsic(_ReadWriteBarrier)
+#   define DO_NOT_OPTIMIZE(x) do { (void)(x); _ReadWriteBarrier(); } while(0)
+#   define CLOBBER_MEMORY()   _ReadWriteBarrier()
+
+#elif defined(__GNUC__) || defined(__clang__)
+
+#   define DO_NOT_OPTIMIZE(x) asm volatile("" : : "g"(x) : "memory")
+#   define CLOBBER_MEMORY()   asm volatile("" ::: "memory")
+
+#else
+
+#   define DO_NOT_OPTIMIZE(x) ((void)x)
+#   define CLOBBER_MEMORY()
+
+#endif
+
 stdext::flat_map<int, float> g_TestFlatMap;
 std::map<int, float> g_TestMap;
 std::unordered_map<int, float> g_TestUnorderedMap;
 
-uint32_t constexpr TEST_MAP_SIZE{ 10'000 };
+uint32_t constexpr TEST_MAP_SIZE{ 1'000'000 };
 
 [[nodiscard]] static constexpr float GenerateValue(uint32_t i) noexcept
 {
@@ -42,27 +61,39 @@ uint32_t constexpr TEST_MAP_SIZE{ 10'000 };
 
 void BenchmarkFlatMapIterate()
 {
+	float sum = 0.0f;
+
 	for (auto const& item : g_TestFlatMap)
 	{
-		item.second *= 2;
+		sum += item.second * 2.0f;
+		DO_NOT_OPTIMIZE(sum);
 	}
+	CLOBBER_MEMORY();
 }
 
 void BenchmarkMapIterate()
 {
+	float sum = 0.0f;
+
 	for (auto& item : g_TestMap)
 	{
-		item.second *= 2;
+		sum += item.second * 2.0f;
+		DO_NOT_OPTIMIZE(sum);
 	}
+	CLOBBER_MEMORY();
 }
 
 
 void BenchmarkUnorderedMapIterate()
 {
+	float sum = 0.0f;
+
 	for (auto& item : g_TestUnorderedMap)
 	{
-		item.second *= 2;
+		sum += item.second * 2.0f;
+		DO_NOT_OPTIMIZE(sum);
 	}
+	CLOBBER_MEMORY();
 }
 
 void BenchmarkFlatMapEmplace()
@@ -138,7 +169,7 @@ int main()
 	// Write CSV header
 	out.imbue(std::locale::classic());
 	out << std::fixed << std::setprecision(6);
-	out << "Compiler,Benchmark,Category,Iterations,Average(us),Total(us),Median(Us),Min(Us),Max(Us)\n";
+	out << "Compiler,Benchmark,Category,Iterations,Average(Ms),Total(Ms),Median(Ms),Min(Ms),Max(Ms)\n";
 
 	for (auto const& r : results)
 	{
@@ -146,13 +177,13 @@ int main()
 			<< r.name << ','
 			<< r.category << ','
 			<< r.iterations << ','
-			<< r.avgUs << ','
-			<< r.totalUs << ','
-			<< r.medianUs << ','
-			<< r.minUs << ','
-			<< r.maxUs << '\n';
+			<< r.avgMs << ','
+			<< r.totalMs << ','
+			<< r.medianMs << ','
+			<< r.minMs << ','
+			<< r.maxMs << '\n';
 
-		std::cout << r.name << ": " << r.avgUs << " us avg (" << r.totalUs << " us total)\n";
+		std::cout << r.name << ": " << r.avgMs << " Ms avg (" << r.totalMs << " Ms total)\n";
 	}
 
 	std::cout << "\nResults written to: " << filePath << "\n";
@@ -186,11 +217,11 @@ int main()
 			<< r.name << ','
 			<< r.category << ','
 			<< r.iterations << ','
-			<< r.avgUs << ','
-			<< r.totalUs << ','
-			<< r.medianUs << ','
-			<< r.minUs << ','
-			<< r.maxUs;
+			<< r.avgMs << ','
+			<< r.totalMs << ','
+			<< r.medianMs << ','
+			<< r.minMs << ','
+			<< r.maxMs;
 
 		oldLines.emplace_back(oss.str());
 	}
@@ -252,7 +283,7 @@ int main()
 	// Write date row
 	merged << "Date:," << timeBuf << "\n";
 
-	merged << "Compiler,Benchmark,Category,Iterations,Average(us),Total(us),Median(Us),Min(Us),Max(Us)\n";
+	merged << "Compiler,Benchmark,Category,Iterations,Average(Ms),Total(Ms),Median(Ms),Min(Ms),Max(Ms)\n";
 	for (auto const& line : oldLines)
 	{
 		merged << line << "\n";

@@ -27,11 +27,11 @@ namespace Mau
 
 			size_t iterations;
 
-			double avgUs;
-			double totalUs;
-			double medianUs;
-			double minUs;
-			double maxUs;
+			double avgMs;
+			double totalMs;
+			double medianMs;
+			double minMs;
+			double maxMs;
 		};
 
 		void Register(std::string const& name, std::string const& category, BenchmarkFunc const& func, size_t iterations = 10) noexcept
@@ -89,7 +89,7 @@ namespace Mau
 
 				auto const end{ high_resolution_clock::now() };
 
-				auto const dur{ duration<double, std::micro>(end - start).count() };
+				auto const dur{ duration<double, std::milli>(end - start).count() };
 				times.emplace_back(dur);
 			}
 
